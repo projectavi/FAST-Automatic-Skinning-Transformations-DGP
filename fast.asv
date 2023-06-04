@@ -1,4 +1,4 @@
-function FAST = fast(V, F, W, C)
+function FAST = fast(V, F, W, C, T)
    n = size(V, 1);
    m = size(C, 1);
    d = size(V, 2);
@@ -12,7 +12,44 @@ function FAST = fast(V, F, W, C)
        end
    end
 
-#end
+   T = reshape(T, [d, (d+1)*m]);
+   T = transpose(T);
+
+   L = cotangent(V, F);
+
+   r = size(W, 2);
+
+   calculateK(d, r, n, C, L, W);
+
+   % Local-Global Optimization
+
+   % Initialising the transformed vertices as the rest-positions
+   T = V;
+
+   % Set an epsilon tolerance value
+   epsilon = 1e-6;
+   delta = epsilon + 1;
+
+   while delta > epsilon
+       T_prev = T;
+
+       R = zeros(r, d, d);
+        
+       % Local Step
+       for i = 1:r
+           % Weighted sum under the transformed vertices
+           Q_i = transpose(T) * diag(W(:, i));
+
+           % SVD
+           [U_svd, sigma_svd, V_svd] = svd(Q_i);
+
+           R(i,:,:) = U_svd * transpose(V_svd);
+       end
+
+       % Global Step
+
+       
+   end
 
 %% TEMP
 

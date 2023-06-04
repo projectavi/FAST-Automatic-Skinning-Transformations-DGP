@@ -19,17 +19,47 @@ function FAST = fast(V, F, W, C, T)
 
    r = size(W, 2);
 
-   K = zeroes(d*r, n);
+   K = calculateK(d, r, n, C, L, W);
 
-   for i = 1:r
-       C_i = C(i, :, :);
+   % Local-Global Optimization
 
-       K_temp = L * reshape(C_i, d, d) .* W(:, i);
+   % Initialising the transformed vertices as the rest-positions
+   T = V;
 
-       K((i-1)*(d+1):i*d, :) = K_temp;
+   % Set an epsilon tolerance value
+   epsilon = 1e-6;
+   delta = epsilon + 1;
+
+   while delta > epsilon
+       T_prev = T;
+
+       R = zeros(r, d, d);
+        
+       % Local Step
+       for i = 1:r
+           % Weighted sum under the transformed vertices
+           Q_i = transpose(T) * diag(W(:, i));
+
+           % SVD
+           [U_svd, sigma_svd, V_svd] = svd(Q_i);
+
+           R(i,:,:) = U_svd * transpose(V_svd);
+       end
+
+       % Global Step
+       
+       
    end
 
+function K = calculateK(d, r, n, C, L, W)
+K = zeroes(d*r, n);
+
+for i = 1:r
+    C_i = C(i, :, :);
     
+    K_temp = L * reshape(C_i, d, d) .* W(:, i);
+    
+    K((i-1)*(d+1):i*d, :) = K_temp;
 end
 
 %% TEMP
