@@ -1,9 +1,41 @@
 % Load model
-[V, F] = readOBJ("Tests\xyzrgb_dragon.obj");
+[V, F] = readOBJ("Tests\cow.obj");
 
-tsurf(F, V)
+%t = tsurf(F, V);
 
-function FAST(V, F, W, C)
+[P, H] = farthest_points(V, 10);
+
+W = biharmonic_bounded(V, F, H, eye(size(H,1)));
+
+%vis_weights(V, F, W);
+
+% Rotation matrix for 45 degrees about the x-axis
+R = [1, 0, 0; 
+     0, cosd(45), -sind(45); 
+     0, sind(45), cosd(45)];
+
+% Translation vector
+t = [10, 20, 30]';
+
+% Constructing the affine transformation matrix
+T = [R, t; 
+     0, 0, 0, 1];
+
+C = [T, T, T, T, T, T, T, T, T, T];
+
+V_prime = FAST(V, F, W, C);
+
+tsurf(F, V_prime);
+
+function vis_weights(V, F, W)
+    t = tsurf(F, V, 'CData', W(:, 1));
+
+    for i = 2:size(W, 2)
+        t.CData = W(:, i);
+    end
+end
+
+function V_prime = FAST(V, F, W, C)
    n = size(V, 1);
    m = size(C, 1);
    d = size(V, 2);
@@ -21,15 +53,15 @@ function FAST(V, F, W, C)
 
    r = size(W, 2);
 
-   K = zeroes(d*r, n);
+   K = zeros(d*r, n);
 
-   for i = 1:r
-       C_i = C(i, :, :);
+   %for i = 1:r
+       %C_i = C(i, :, :);
 
-       K_temp = L * reshape(C_i, d, d) .* W(:, i);
+       %K_temp = L * reshape(C_i, [d, d]) .* W(:, i);
 
-       K((i-1)*(d+1):i*d, :) = K_temp;
-   end
+       %K((i-1)*(d+1):i*d, :) = K_temp;
+   %end
 
    % Local-Global Optimization
 
@@ -79,7 +111,7 @@ function FAST(V, F, W, C)
        delta = max(abs(T - T_prev));
    end
 
-   V_new = M * T;
+   V_prime = M * T;
 end
 
 %% TEMP
