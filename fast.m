@@ -1,4 +1,9 @@
-function FAST = fast(V, F, W, C)
+% Load model
+[V, F] = readOBJ("Tests\xyzrgb_dragon.obj");
+
+tsurf(F, V)
+
+function FAST(V, F, W, C)
    n = size(V, 1);
    m = size(C, 1);
    d = size(V, 2);

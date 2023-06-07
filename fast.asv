@@ -1,4 +1,9 @@
-function FAST = fast(V, F, W, C, T)
+% Load model
+[V, F] = readOBJ("Tests\xyzrgb_dragon.obj");
+
+tsurf(F, V)
+
+function FAST(V, F, W, C)
    n = size(V, 1);
    m = size(C, 1);
    d = size(V, 2);
@@ -12,14 +17,19 @@ function FAST = fast(V, F, W, C, T)
        end
    end
 
-   T = reshape(T, [d, (d+1)*m]);
-   T = transpose(T);
-
    L = cotangent(V, F);
 
    r = size(W, 2);
 
-   calculateK(d, r, n, C, L, W);
+   K = zeroes(d*r, n);
+
+   for i = 1:r
+       C_i = C(i, :, :);
+
+       K_temp = L * reshape(C_i, d, d) .* W(:, i);
+
+       K((i-1)*(d+1):i*d, :) = K_temp;
+   end
 
    % Local-Global Optimization
 
@@ -47,9 +57,30 @@ function FAST = fast(V, F, W, C, T)
        end
 
        % Global Step
-
+       K = zeros(d*r, n);
        
+       for j = 1:m
+           for k = 1:r
+               W_j = W(:, j);
+               R_k = R(:, :, k);
+               VW_j = W_j .* V_svd;
+               V_new = VW_j * transpose(R_k);
+               K_j = kron(eye(r), V_new);
+               K = K + K_j;
+           end
+       end
+
+       A = [M; K];
+
+       b = [V * W * T * T; zeros(d*r, 1)];
+
+       T = A \ b;
+
+       delta = max(abs(T - T_prev));
    end
+
+   V_new = M * T;
+end
 
 %% TEMP
 
