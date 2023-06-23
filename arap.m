@@ -162,17 +162,20 @@ end
 
 max_iter = 25;
 
-% Compute the covariance matrix S
-CSM = covariance_scatter_matrix(V, F, 'Energy', 'spokes');
-S = CSM * repmat(V, d, 1);
-% dim by dim by n list of covariance matrices
-S = permute(reshape(S,[n d d]),[2 3 1]);
-
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
 
 % Optimisation Loop
 for iter = 1:max_iter
+    
+    %% Fixed Deformed Positions, Finding Rotations
+
+    % Compute the covariance matrix S
+    CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+    S = CSM * repmat(V_prime, d, 1);
+    % dim by dim by n list of covariance matrices
+    S = permute(reshape(S,[n d d]),[2 3 1]);
+
     % Iterate through vertices i
     for i = 1:n
         Si = S(:, :, i);
