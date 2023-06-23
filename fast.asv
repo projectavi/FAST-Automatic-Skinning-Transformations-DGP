@@ -32,7 +32,11 @@ for j = 1:m
     C(:, j) = c_j;
 end
 
-V_prime = FAST(V, F, W, C);
+ A = adjacency_matrix(F); % The adjacency matrix of the mesh
+D = diag(sum(A, 2)); % Degree matrix, diagonal matrix
+Ln = D - A; % Laplacian matrix
+
+V_prime = FAST(V, F, W, C, Ln);
 
 tsurf(F, V_prime);
 
@@ -44,7 +48,7 @@ function vis_weights(V, F, W)
     end
 end
 
-function V_prime = FAST(V, F, W, C)
+function V_prime = FAST(V, F, W, C, Ln)
    n = size(V, 1);
    m = size(C, 2);
    d = size(V, 2);
@@ -82,59 +86,25 @@ function V_prime = FAST(V, F, W, C)
    delta = epsilon + 1;
 
    while delta > epsilon
-       T_prev = T;
+        T_prev = T;
 
-       R = zeros(d, d, m);
+        S = zeros(n*d, d);
 
-       rotations = {};
-
-        % Loop over each bone
-        for j = 1:m
-            % Compute Qj
-            Q_j = zeros(3, 3);
-            for i = 1:n
-                diff_V = V(i, :)' - reshape(C(1:12, j), 3, 4) * [1; 0; 0; 1];
-                W_ij = W(i, j);
-                start_idx = (j-1)*d + 1;
-                end_idx = j*d;
-                T_ik = transpose(T_prev(start_idx:end_idx));
-                Q_j = Q_j + W_ij * (diff_V * transpose(T_ik) - transpose(diff_V) * T_ik);
+        CSM = covariance_scatter_matrix(V,F,'Energy',energy);
+        MLBS = lbs_matrix(V,W);
+        
+        CSM_MLBS = cell(dim,1);
+          for ii = 1:d
+            %CSM_MLBS{ii} = CSM*repmat(MLBS((ii-1)*n+(1:n),:),dim,1);
+            CSM_MLBS{ii} = sparse(size(CSM,1),size(MLBS,2));
+            Mi = MLBS((ii-1)*n+(1:n),:);
+            for jj = 1:d
+              CSM_MLBS{ii}((jj-1)*k+(1:k),:) = ...
+                CSM((jj-1)*k+(1:k),(jj-1)*n+(1:n)) * ...
+                Mi;
             end
-            
-            % Perform SVD
-            [U, ~, V_svd] = svd(Q_j);
-            
-            % Ensure we have a proper rotation
-            D = eye(3);
-            D(3, 3) = sign(det(U * V_svd'));
-            
-            % Compute the rotation matrix R_j
-            R_j = U * D * V_svd';
-            
-            % Assign R_j to the j-th rotation matrix in R
-            R(:, :, j) = R_j;
+          end
 
-            rotations{end + 1} = R_j;
-        end
-
-       % Global Step
-        Q = L' * L; % Covariance scatter matrix
-
-        Aeq = kron(eye(d), M);
-        Beq = eye(d);
-
-        b = zeros(n, d);
-        for i = 1:n
-            Ri = squeeze(R(i, :, :)); % Rotation for vertex i
-            for j = 1:n
-                if L(i, j) ~= 0 % Check if i and j are neighbors
-                    Rj = squeeze(R(j, :, :)); % Rotation for vertex j
-                    b(i, :) = b(i, :) - L(i, j) * (Ri * V(i, :)' - Rj * V(j, :)');
-                end
-            end
-        end
-
-        T = min_quad_with_fixed(Q, b, Aeq, Beq);
    end  
 
    V_prime = M * T;

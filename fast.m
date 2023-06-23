@@ -32,7 +32,11 @@ for j = 1:m
     C(:, j) = c_j;
 end
 
-V_prime = FAST(V, F, W, C);
+ A = adjacency_matrix(F); % The adjacency matrix of the mesh
+D = diag(sum(A, 2)); % Degree matrix, diagonal matrix
+Ln = D - A; % Laplacian matrix
+
+V_prime = FAST(V, F, W, C, Ln);
 
 tsurf(F, V_prime);
 
@@ -44,7 +48,7 @@ function vis_weights(V, F, W)
     end
 end
 
-function V_prime = FAST(V, F, W, C)
+function V_prime = FAST(V, F, W, C, Ln)
    n = size(V, 1);
    m = size(C, 2);
    d = size(V, 2);
@@ -74,6 +78,20 @@ function V_prime = FAST(V, F, W, C)
 
    % Local-Global Optimization
 
+   CSM = covariance_scatter_matrix(V,F);
+    MLBS = M;
+    
+    CSM_MLBS = cell(d,1);
+      for i = 1:d
+        CSM_MLBS{i} = sparse(size(CSM,1),size(MLBS,2));
+        Mi = MLBS((i-1)*n+(1:n),:);
+        for jj = 1:d
+          CSM_MLBS{i}((jj-1)*n+(1:n),:) = ...
+            CSM((jj-1)*n+(1:n),(jj-1)*n+(1:n)) * ...
+            Mi;
+        end
+      end
+
    % Initialising the transformed vertices as the rest-positions
    T = V;
 
@@ -82,73 +100,17 @@ function V_prime = FAST(V, F, W, C)
    delta = epsilon + 1;
 
    while delta > epsilon
-       T_prev = T;
+        T_prev = T;
 
-       R = zeros(d, d, m);
+        S = zeros(n*d, d);
 
-       rotations = {};
-
-        % Loop over each bone
-        for j = 1:m
-            % Compute Qj
-            Q_j = zeros(3, 3);
-            for i = 1:n
-                diff_V = V(i, :)' - reshape(C(1:12, j), 3, 4) * [1; 0; 0; 1];
-                W_ij = W(i, j);
-                start_idx = (j-1)*d + 1;
-                end_idx = j*d;
-                T_ik = transpose(T_prev(start_idx:end_idx));
-                Q_j = Q_j + W_ij * (diff_V * transpose(T_ik) - transpose(diff_V) * T_ik);
-            end
-            
-            % Perform SVD
-            [U, ~, V_svd] = svd(Q_j);
-            
-            % Ensure we have a proper rotation
-            D = eye(3);
-            D(3, 3) = sign(det(U * V_svd'));
-            
-            % Compute the rotation matrix R_j
-            R_j = U * D * V_svd';
-            
-            % Assign R_j to the j-th rotation matrix in R
-            R(:, :, j) = R_j;
-
-            rotations{end + 1} = R_j;
+        for i = 1:d
+          S(:,i) = CSM_MLBS{i}*T;
         end
 
-       % Global Step
-        A = zeros(n*d, m*(d+1));
-
-        for i = 1:n
-            for j = 1:m
-                idx = (j-1)*(d+1) + (1:d);
-                A((i-1)*d + (1:d), idx) = W(i, j) * R(:, :, j); % Using rotation matrix R for bone j
-                A((i-1)*d + (1:d), j*(d+1)) = W(i, j) * eye(d);
-            end
-        end
-
-        Q = A' * (L' * L) * A;
-
+        S = permute(reshape(S,[n d d]),[2 3 1]);
         
-        b = zeros((d + 1) * m, 1); % The vector b in the linear system
-        
-        % Compute the right-hand side b
-        for j = 1:m
-            sum_j = zeros(d+1, 1);
-            for i = 1:n
-                e = V(i, :)' - C(:, j);
-                e = [e; 1];
-                sum_j = sum_j + W(i, j) * R(:, :, j) * e;
-            end
-            b((j-1)*(d+1) + 1 : j*(d+1)) = sum_j;
-        end
-        
-        % Solve the linear system
-        T = Q \ (M' * L * b);
-
-        % Compute the change to check for convergence
-        delta = norm(T - T_prev, 'fro');
+        R = fit_rotations(S);
    end  
 
    V_prime = M * T;
