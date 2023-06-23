@@ -118,37 +118,23 @@ function V_prime = FAST(V, F, W, C)
         end
 
        % Global Step
-        A = zeros(n*d, m*(d+1));
+        Q = L' * L; % Covariance scatter matrix
 
+        Aeq = kron(eye(d), M);
+        Beq = eye(d);
+
+        b = zeros(n, d);
         for i = 1:n
-            for j = 1:m
-                idx = (j-1)*(d+1) + (1:d);
-                A((i-1)*d + (1:d), idx) = W(i, j) * R(:, :, j); % Using rotation matrix R for bone j
-                A((i-1)*d + (1:d), j*(d+1)) = W(i, j) * eye(d);
+            Ri = squeeze(R(i, :, :)); % Rotation for vertex i
+            for j = 1:n
+                if L(i, j) ~= 0 % Check if i and j are neighbors
+                    Rj = squeeze(R(j, :, :)); % Rotation for vertex j
+                    b(i, :) = b(i, :) - L(i, j) * (Ri * V(i, :)' - Rj * V(j, :)');
+                end
             end
         end
 
-        Q = A' * (L' * L) * A;
-
-        
-        b = zeros((d + 1) * m, 1); % The vector b in the linear system
-        
-        % Compute the right-hand side b
-        for j = 1:m
-            sum_j = zeros(d+1, 1);
-            for i = 1:n
-                e = V(i, :)' - C(:, j);
-                e = [e; 1];
-                sum_j = sum_j + W(i, j) * R(:, :, j) * e;
-            end
-            b((j-1)*(d+1) + 1 : j*(d+1)) = sum_j;
-        end
-        
-        % Solve the linear system
-        T = Q \ (M' * L * b);
-
-        % Compute the change to check for convergence
-        delta = norm(T - T_prev, 'fro');
+        T = min_quad_with_fixed(Q, b, Aeq, Beq);
    end  
 
    V_prime = M * T;
