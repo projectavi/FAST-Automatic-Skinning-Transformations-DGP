@@ -4,6 +4,7 @@
 [V, F] = readOBJ("Tests\cow.obj");
 
 n = size(V, 1);
+d = size(V, 2);
 m = size(F, 1);
 
 % Construct the N(i), the set of vertices connected to vertex i
@@ -140,17 +141,37 @@ A = adjacency_matrix(F);
 L = cotmatrix(V, F);
 
 % Determine the transformation of the 'handles' for the constraint.
-m = 10; % number of handles, for this purpose we will use every 290th vertex
+h = 10; % number of handles, for this purpose we will use every 290th vertex
 
 H = []; % Handle indices
-for i = 1:m
+for i = 1:h
     H = [H, 290 * i];
 end
 
-C = zeros(m )
+C = zeros(h, d);
 
+% Initial Guess
+V_prime = V;
 
+for i = 1:h
+    original_pos = V(H(i), :);
+    original_pos(3) = original_pos(3) + 10.5;
+    C(i, :) = original_pos;
+    V_prime(H(i), :) = original_pos;
+end
 
+max_iter = 25;
+
+% Optimisation Loop
+for iter = 1:max_iter
+    % Iterate through vertices i
+    for i = 1:n
+        % Compute the covariance matrix S_i
+        Si = covariance_scatter_matrix(V, F, 'Energy', 'spokes');
+
+        % Compute the 
+    end
+end
 
 % Function to get triangles incident upon vertex i
 function Ci = cell(i, F)

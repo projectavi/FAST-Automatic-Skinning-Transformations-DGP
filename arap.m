@@ -150,14 +150,41 @@ end
 
 C = zeros(h, d);
 
+% Initial Guess
+V_prime = V;
+
 for i = 1:h
     original_pos = V(H(i), :);
     original_pos(3) = original_pos(3) + 10.5;
     C(i, :) = original_pos;
+    V_prime(H(i), :) = original_pos;
 end
 
+max_iter = 25;
 
+% Compute the covariance matrix S
+CSM = covariance_scatter_matrix(V, F, 'Energy', 'spokes');
+S = CSM * repmat(V, d, 1);
+% dim by dim by n list of covariance matrices
+S = permute(reshape(S,[n d d]),[2 3 1]);
 
+% Initialise array of local rotation matrices
+R = zeros(n, d, d);
+
+% Optimisation Loop
+for iter = 1:max_iter
+    % Iterate through vertices i
+    for i = 1:n
+        Si = S(:, :, i);
+
+        % Compute the SVD of Si
+        [Ui, Sigi, ViT] = svd(Si);
+
+        Ri = transpose(ViT) * transpose(Ui);
+
+        R(i, :, :) = Ri;
+    end
+end
 
 % Function to get triangles incident upon vertex i
 function Ci = cell(i, F)
