@@ -120,7 +120,7 @@ A = adjacency_matrix(F);
 % whose ith row/entry is the right hand side of the linear system.
 % The modelling constraints can be embedded into this system using an
 % additional constraint of V_prime(k, :) = c(k) for all k in a set of
-% indices of the constrained vertices, ie the handles.
+% indices of the constrained vertices (H), ie the handles.
 
 % This is incorportated into L * V_prime = b by erasing the corresponding
 % rows and columns from L and updating b with the constrained values from
@@ -133,11 +133,21 @@ A = adjacency_matrix(F);
 % precomputed (L).
 % Given an initial guess of V_prime (original V with the constrained
 % positions), the local rotations are estimated.
+% Then, fixing those local rotations, new positions V_prime are obtained by
+% solving L * V_prime = b by doing V_prime = inv(L) * b. This is repeated
+% until the energy is at an acceptable level. 
     
+L = cotmatrix(V, F);
 
+% Determine the transformation of the 'handles' for the constraint.
+m = 10; % number of handles, for this purpose we will use every 290th vertex
 
+H = []; % Handle indices
+for i = 1:m
+    H = [H, 290 * i];
+end
 
-
+C = zeros(m )
 
 
 

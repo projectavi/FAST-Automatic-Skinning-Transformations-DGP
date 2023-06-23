@@ -4,6 +4,7 @@
 [V, F] = readOBJ("Tests\cow.obj");
 
 n = size(V, 1);
+d = size(V, 2);
 m = size(F, 1);
 
 % Construct the N(i), the set of vertices connected to vertex i
@@ -120,7 +121,7 @@ A = adjacency_matrix(F);
 % whose ith row/entry is the right hand side of the linear system.
 % The modelling constraints can be embedded into this system using an
 % additional constraint of V_prime(k, :) = c(k) for all k in a set of
-% indices of the constrained vertices, ie the handles.
+% indices of the constrained vertices (H), ie the handles.
 
 % This is incorportated into L * V_prime = b by erasing the corresponding
 % rows and columns from L and updating b with the constrained values from
@@ -139,9 +140,21 @@ A = adjacency_matrix(F);
     
 L = cotmatrix(V, F);
 
+% Determine the transformation of the 'handles' for the constraint.
+h = 10; % number of handles, for this purpose we will use every 290th vertex
 
+H = []; % Handle indices
+for i = 1:h
+    H = [H, 290 * i];
+end
 
+C = zeros(h, d);
 
+for i = 1:h
+    original_pos = V(H(i), :);
+    original_pos(3) = original_pos(3) + 10.5;
+    C(i, :) = original_pos;
+end
 
 
 
