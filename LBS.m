@@ -1,13 +1,17 @@
-[V, F] = readOBJ("Tests\nefertiti.obj");
+[V, F] = readOBJ("Tests\cow.obj");
 %tsurf(F, V)
 n = size(V, 1);
-W = ones(n, 1);
+W = ones(n, 2);
 t_x = 2;
 t_y = 2;
 t_z = 2;
-T = [1, 0, 0, t_x;
+T1 = [1, 0, 0, t_x;
      0, 1, 0, t_y;
      0, 0, 1, t_z];
+T2 = [1, 0, 0, t_y*5;
+     0, 1, 0, t_z*9;
+     0, 0, 1, t_x*3];
+T = [T1, T2];
 
 V_prime = linear_blend_skinning(V, F, W, T);
 
@@ -15,7 +19,7 @@ V_prime = linear_blend_skinning(V, F, W, T);
 
 t = tsurf(F, V_prime);
 axis([0 1000 0 1000 0 1000]);
-v = VideoWriter('translation.avi');
+v = VideoWriter('translation2.avi');
 open(v);
 
 for i=1:360
@@ -38,7 +42,7 @@ function V_prime = linear_blend_skinning(V, F, W, T)
     n = size(V, 1);
     d = size(V, 2);
 
-    m = 1; % for now
+    m = 2; % for now
 
     M = zeros(n, (d+1)*m);
     

@@ -1,10 +1,13 @@
 %% ARAP
 
 % Load model
-[V, F] = readOBJ("Tests\cow.obj");
+[V_og, F] = readOBJ("Tests\cow.obj");
 
-n = size(V, 1);
-d = size(V, 2);
+t = tsurf(F, V);
+hold on;
+
+n = size(V_og, 1);
+d = size(V_og, 2);
 m = size(F, 1);
 
 % Construct the N(i), the set of vertices connected to vertex i
@@ -138,15 +141,17 @@ A = adjacency_matrix(F);
 % solving L * V_prime = b by doing V_prime = inv(L) * b. This is repeated
 % until the energy is at an acceptable level. 
     
-L = cotmatrix(V, F);
+% Scrambled original position
+V = V_og;
+
+L = cotmatrix(V_og, F);
 
 % Determine the transformation of the 'handles' for the constraint.
-h = 10; % number of handles, for this purpose we will use every 290th vertex
 
-H = []; % Handle indices
-for i = 1:h
-    H = [H, 290 * i];
-end
+%H = [2612, 49]; % Handle indices
+H = [];
+
+h = size(H, 1); % number of handles, for this purpose we will use every 290th vertex
 
 C = zeros(h, d);
 
@@ -154,27 +159,26 @@ C = zeros(h, d);
 V_prime = V;
 
 for i = 1:h
-    original_pos = V(H(i), :);
-    original_pos(3) = original_pos(3) + 10.5;
+    original_pos = V_og(H(i), :);
     C(i, :) = original_pos;
     V_prime(H(i), :) = original_pos;
 end
 
-max_iter = 25;
+max_iter = 1;
 
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
+
+% Compute the covariance matrix S
+CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+S = CSM * repmat(V_prime, d, 1);
+% dim by dim by n list of covariance matrices
+S = permute(reshape(S,[n d d]),[2 3 1]);
 
 % Optimisation Loop
 for iter = 1:max_iter
     
     %% Fixed Deformed Positions, Finding Rotations
-
-    % Compute the covariance matrix S
-    CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
-    S = CSM * repmat(V_prime, d, 1);
-    % dim by dim by n list of covariance matrices
-    S = permute(reshape(S,[n d d]),[2 3 1]);
 
     % Iterate through vertices i
     for i = 1:n
@@ -183,11 +187,49 @@ for iter = 1:max_iter
         % Compute the SVD of Si
         [Ui, Sigi, ViT] = svd(Si);
 
-        Ri = transpose(ViT) * transpose(Ui);
+        Ri = ViT * Ui';
 
         R(i, :, :) = Ri;
     end
+
+    %% Fixed Rotations, Finding Deformed Positions
+
+    % Construction of the b vector
+    bin = zeros(n, 3);
+
+    for i = 1:n
+        if ismember(i, H)
+            index = find(H == i);
+            b(i, :) = C(index, :);
+        else
+            RHS = 0;
+            Ni = N(i, A);
+            for jj = 1:size(Ni, 2)
+                j = Ni(jj);
+                Ri = reshape(R(i, :, :), [3, 3]);
+                Rj = reshape(R(j, :, :), [3, 3]);
+                f = L(i, j);
+                s = (Ri + Rj);
+                t = reshape(V(i, :) - V(j, :), [3, 1]);
+                energy = 0.5 * f * s * t;
+                RHS = RHS + energy;
+            end
+            b(i, :) = RHS;
+        end
+    end
+
+    V_prime = L \ b;
+
+
+    %tsurf(F, V_prime);
 end
+
+offsetx = 15;
+
+tsurf(F, V_prime + [offsetx, 0, 0]);
+axis equal;
+
+% t.Vertices = V_prime;
 
 % Function to get triangles incident upon vertex i
 function Ci = cell(i, F)
