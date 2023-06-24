@@ -3,7 +3,7 @@
 % Load model
 [V_og, F] = readOBJ("Tests\cow.obj");
 
-t = tsurf(F, V);
+t = tsurf(F, V_og);
 hold on;
 
 n = size(V_og, 1);
@@ -144,7 +144,7 @@ A = adjacency_matrix(F);
 % Scrambled original position
 V = V_og;
 
-L = cotmatrix(V_og, F);
+L = cotmatrix(V_og, F) * 1e-9;
 
 % Determine the transformation of the 'handles' for the constraint.
 
@@ -189,14 +189,17 @@ for iter = 1:max_iter
 
         Ri = ViT * Ui';
 
+        % For testing purposes
+        %Ri = eye(d);
+
         R(i, :, :) = Ri;
     end
 
     %% Fixed Rotations, Finding Deformed Positions
 
     % Construction of the b vector
-    bin = zeros(n, 3);
-
+    b = zeros(n, 3);
+    
     for i = 1:n
         if ismember(i, H)
             index = find(H == i);
@@ -206,8 +209,8 @@ for iter = 1:max_iter
             Ni = N(i, A);
             for jj = 1:size(Ni, 2)
                 j = Ni(jj);
-                Ri = reshape(R(i, :, :), [3, 3]);
-                Rj = reshape(R(j, :, :), [3, 3]);
+                Ri = squeeze(R(i, :, :));
+                Rj = squeeze(R(j, :, :));
                 f = L(i, j);
                 s = (Ri + Rj);
                 t = reshape(V(i, :) - V(j, :), [3, 1]);
@@ -218,7 +221,9 @@ for iter = 1:max_iter
         end
     end
 
-    V_prime = L \ b;
+    b = -L * V_og;
+
+    V_prime = L \ -b;
 
 
     %tsurf(F, V_prime);
@@ -226,7 +231,7 @@ end
 
 offsetx = 15;
 
-tsurf(F, V_prime + [offsetx, 0, 0]);
+tsurf(F, V_prime);
 axis equal;
 
 % t.Vertices = V_prime;
