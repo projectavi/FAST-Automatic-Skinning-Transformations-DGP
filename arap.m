@@ -144,7 +144,7 @@ A = adjacency_matrix(F);
 % Scrambled original position
 V = V_og;
 
-L = cotmatrix(V_og, F) * 1e-9;
+L = cotmatrix(V_og, F) + 1e-9*eye(n);
 
 % Determine the transformation of the 'handles' for the constraint.
 
@@ -220,8 +220,6 @@ for iter = 1:max_iter
             b(i, :) = RHS;
         end
     end
-
-    b = -L * V_og;
 
     V_prime = L \ -b;
 
