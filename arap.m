@@ -139,13 +139,22 @@ A = adjacency_matrix(F);
 % Then, fixing those local rotations, new positions V_prime are obtained by
 % solving L * V_prime = b by doing V_prime = inv(L) * b. This is repeated
 % until the energy is at an acceptable level. 
-    
+
 % Scrambled original position
 %V = V_rest;
 V = rand(n, d);
 
 t = tsurf(F, V);
 hold on;
+axis equal;
+frame = getframe(gcf);
+v = VideoWriter('araph4.avi');
+open(v);
+writeVideo(v, frame);
+writeVideo(v, frame);
+writeVideo(v, frame);
+writeVideo(v, frame);
+writeVideo(v, frame);
 
 L = cotmatrix(V_rest, F) + 1e-9*speye(n);
 L = -L; % Make the matrix positive definite
@@ -153,9 +162,9 @@ L = -L; % Make the matrix positive definite
 % Determine the transformation of the 'handles' for the constraint.
 
 %H = [2612, 49]; % Handle indices
-H = [1];
+H = [2612, 49, 420, 99];
 
-h = size(H, 1); % number of handles, for this purpose we will use every 290th vertex
+h = size(H, 2); % number of handles, for this purpose we will use every 290th vertex
 
 C = zeros(h, d);
 
@@ -165,19 +174,14 @@ V_prime = V;
 for i = 1:h
     original_pos = V_rest(H(i), :);
     C(i, :) = original_pos;
+    scatter3(original_pos(1), original_pos(2), original_pos(3), 'filled');
     V_prime(H(i), :) = original_pos;
 end
 
-max_iter = 1;
+max_iter = 25;
 
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
-
-% Compute the covariance matrix S
-CSM = covariance_scatter_matrix(V_rest, F, 'Energy', 'spokes');
-S = CSM * repmat(V_rest, d, 1);
-% dim by dim by n list of covariance matrices
-S = permute(reshape(S,[n d d]),[2 3 1]);
 
 offsetx = 5;
 
@@ -206,6 +210,12 @@ fprintf('The ARAP Energy is: %d\n', energy);
 for iter = 1:max_iter
     
     %% Fixed Deformed Positions, Finding Rotations
+    
+    % Compute the covariance matrix S
+    CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+    S = CSM * repmat(V_prime, d, 1);
+    % dim by dim by n list of covariance matrices
+    S = permute(reshape(S,[n d d]),[2 3 1]);
 
     % Iterate through vertices i
     for i = 1:n
@@ -215,6 +225,10 @@ for iter = 1:max_iter
         [Ui, Sigi, ViT] = svd(Si);
 
         Ri = ViT * Ui';
+        if det(Ri) <= 0
+            Ui(:, 1) = Ui(:, 1) * -1;
+            Ri = ViT * Ui';
+        end
 
         % For testing purposes
         %Ri = eye(d);
@@ -231,7 +245,7 @@ for iter = 1:max_iter
         RHS = 0;
         Ni = N(i, A);
         for j = Ni
-            cot_weight = L(i, j); %Compensating for how minimisation works
+            cot_weight = 2*L(i, j); % Compensating for how minimisation works
 
             edge_diff_rest = V_rest(i, :) - V_rest(j, :);
 
@@ -246,7 +260,7 @@ for iter = 1:max_iter
 
     %b = -L * V_rest;
 
-    V_prime = min_quad_with_fixed(2*L, b, H, C);
+    V_prime = min_quad_with_fixed(2*L, b, H, C); % Additional Compensation
 
     %% Computing ARAP Energy to Check
     energy = 0;
@@ -269,20 +283,20 @@ for iter = 1:max_iter
 
     fprintf('The ARAP Energy is: %d\n', energy);
 
-    offsetx = 12 * iter;
+    offsetx = 10 * iter;
 
-    tsurf(F, V_prime + [offsetx, 0, 0]);
-
-    V_prime = L \ -b;
-
-    offsetx = 20 * iter;
-
-    tsurf(F, V_prime + [offsetx, 0, 0]);
-    %tsurf(F, V_prime);
+    t.Vertices = V_prime;
+    axis equal;
+    %drawnow;
+    frame = getframe(gcf);
+    writeVideo(v, frame);
 end
 
+offsetx = 12;
+
 %tsurf(F, V_prime + [offsetx, 0, 0]);
-axis equal;
+
+close(v);
 
 % t.Vertices = V_prime;
 

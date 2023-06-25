@@ -146,6 +146,9 @@ V = rand(n, d);
 
 t = tsurf(F, V);
 hold on;
+axi
+v = VideoWriter('arap.avi');
+open(v);
 
 L = cotmatrix(V_rest, F) + 1e-9*speye(n);
 L = -L; % Make the matrix positive definite
@@ -165,19 +168,17 @@ V_prime = V;
 for i = 1:h
     original_pos = V_rest(H(i), :);
     C(i, :) = original_pos;
+    %scatter3(original_pos(1), original_pos(2), original_pos(3), 'filled');
     V_prime(H(i), :) = original_pos;
 end
 
-max_iter = 1;
+max_iter = 10;
 
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
 
 % Compute the covariance matrix S
 CSM = covariance_scatter_matrix(V_rest, F, 'Energy', 'spokes');
-S = CSM * repmat(V_rest, d, 1);
-% dim by dim by n list of covariance matrices
-S = permute(reshape(S,[n d d]),[2 3 1]);
 
 offsetx = 5;
 
@@ -207,6 +208,10 @@ for iter = 1:max_iter
     
     %% Fixed Deformed Positions, Finding Rotations
 
+    S = CSM * repmat(V_prime, d, 1);
+    % dim by dim by n list of covariance matrices
+    S = permute(reshape(S,[n d d]),[2 3 1]);
+
     % Iterate through vertices i
     for i = 1:n
         Si = S(:, :, i);
@@ -215,6 +220,10 @@ for iter = 1:max_iter
         [Ui, Sigi, ViT] = svd(Si);
 
         Ri = ViT * Ui';
+        if det(Ri) <= 0
+            Ui(:, 1) = Ui(:, 1) * -1;
+            Ri = ViT * Ui';
+        end
 
         % For testing purposes
         %Ri = eye(d);
@@ -228,23 +237,18 @@ for iter = 1:max_iter
     b = zeros(n, 3);
 
     for i = 1:n
-        if ismember(i, H)
-            index = find(H == i);
-            RHS = C(index, :);
-        else
-            RHS = 0;
-            Ni = N(i, A);
-            for j = Ni
-                cot_weight = L(i, j);
-    
-                edge_diff_rest = V_rest(i, :) - V_rest(j, :);
-    
-                avg_rotated_diff_rest = 0.5*(squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
-    
-                rotated_diff_rest = avg_rotated_diff_rest * edge_diff_rest';
-    
-                RHS = RHS + cot_weight * rotated_diff_rest';
-            end
+        RHS = 0;
+        Ni = N(i, A);
+        for j = Ni
+            cot_weight = L(i, j);
+
+            edge_diff_rest = V_rest(i, :) - V_rest(j, :);
+
+            avg_rotated_diff_rest = (squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
+
+            rotated_diff_rest = avg_rotated_diff_rest * edge_diff_rest';
+
+            RHS = RHS + cot_weight * rotated_diff_rest';
         end
         b(i, :, :) = RHS;
     end
@@ -274,20 +278,19 @@ for iter = 1:max_iter
 
     fprintf('The ARAP Energy is: %d\n', energy);
 
-    offsetx = 12 * iter;
+    offsetx = 10 * iter;
 
-    tsurf(F, V_prime + [offsetx, 0, 0]);
-
-    V_prime = L \
-
-    offsetx = 12 * iter;
-
-    tsurf(F, V_prime + [offsetx, 0, 0]);
-    %tsurf(F, V_prime);
+    t.Vertices = V_prime;
+    %drawnow;
+    frame = getframe(gcf);
+    writeVideo(v, frame);
 end
 
+offsetx = 12;
+
 %tsurf(F, V_prime + [offsetx, 0, 0]);
-axis equal;
+
+close(v);
 
 % t.Vertices = V_prime;
 
