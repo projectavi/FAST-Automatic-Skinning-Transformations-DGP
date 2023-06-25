@@ -141,8 +141,8 @@ A = adjacency_matrix(F);
 % until the energy is at an acceptable level. 
     
 % Scrambled original position
-V = V_rest;
-%V = rand(n, d);
+%V = V_rest;
+V = rand(n, d);
 
 t = tsurf(F, V);
 hold on;
@@ -175,6 +175,9 @@ R = zeros(n, d, d);
 
 % Compute the covariance matrix S
 CSM = covariance_scatter_matrix(V_rest, F, 'Energy', 'spokes');
+S = CSM * repmat(V_rest, d, 1);
+% dim by dim by n list of covariance matrices
+S = permute(reshape(S,[n d d]),[2 3 1]);
 
 offsetx = 5;
 
@@ -204,10 +207,6 @@ for iter = 1:max_iter
     
     %% Fixed Deformed Positions, Finding Rotations
 
-    S = CSM * repmat(V_prime, d, 1);
-    % dim by dim by n list of covariance matrices
-    S = permute(reshape(S,[n d d]),[2 3 1]);
-
     % Iterate through vertices i
     for i = 1:n
         Si = S(:, :, i);
@@ -229,42 +228,30 @@ for iter = 1:max_iter
     b = zeros(n, 3);
 
     for i = 1:n
-        RHS = 0;
-        Ni = N(i, A);
-        for j = Ni
-            cot_weight = L(i, j);
-
-            edge_diff_rest = V_rest(i, :) - V_rest(j, :);
-
-            rotated_diff_rest = 0.(squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
-    end
-    
-    %{
-    for i = 1:n
         if ismember(i, H)
             index = find(H == i);
-            b(i, :) = C(index, :);
+            RHS = C(index, :);
         else
             RHS = 0;
             Ni = N(i, A);
-            for jj = 1:size(Ni, 2)
-                j = Ni(jj);
-                Ri = squeeze(R(i, :, :));
-                Rj = squeeze(R(j, :, :));
-                f = L(i, j);
-                s = (Ri + Rj);
-                t = reshape(V(i, :) - V(j, :), [3, 1]);
-                energy = 0.5 * f * s * t;
-                RHS = RHS + energy;
+            for j = Ni
+                cot_weight = L(i, j);
+    
+                edge_diff_rest = V_rest(i, :) - V_rest(j, :);
+    
+                avg_rotated_diff_rest = 0.5*(squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
+    
+                rotated_diff_rest = avg_rotated_diff_rest * edge_diff_rest';
+    
+                RHS = RHS + cot_weight * rotated_diff_rest';
             end
-            b(i, :) = RHS;
         end
+        b(i, :, :) = RHS;
     end
-    %}
 
     %b = -L * V_rest;
 
-    V_prime = L \ -b;
+    V_prime = min_quad_with_fixed(L, b, H, C);
 
     %% Computing ARAP Energy to Check
     energy = 0;
@@ -287,7 +274,13 @@ for iter = 1:max_iter
 
     fprintf('The ARAP Energy is: %d\n', energy);
 
-    offsetx = 0 * iter;
+    offsetx = 12 * iter;
+
+    tsurf(F, V_prime + [offsetx, 0, 0]);
+
+    V_prime = L \
+
+    offsetx = 12 * iter;
 
     tsurf(F, V_prime + [offsetx, 0, 0]);
     %tsurf(F, V_prime);

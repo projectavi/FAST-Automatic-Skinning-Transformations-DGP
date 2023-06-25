@@ -141,7 +141,7 @@ A = adjacency_matrix(F);
 % until the energy is at an acceptable level. 
     
 % Scrambled original position
-V = V_rest;
+%V = V_rest;
 V = rand(n, d);
 
 t = tsurf(F, V);
@@ -153,7 +153,7 @@ L = -L; % Make the matrix positive definite
 % Determine the transformation of the 'handles' for the constraint.
 
 %H = [2612, 49]; % Handle indices
-H = [];
+H = [1];
 
 h = size(H, 1); % number of handles, for this purpose we will use every 290th vertex
 
@@ -168,7 +168,7 @@ for i = 1:h
     V_prime(H(i), :) = original_pos;
 end
 
-max_iter = 2;
+max_iter = 1;
 
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
@@ -231,11 +231,11 @@ for iter = 1:max_iter
         RHS = 0;
         Ni = N(i, A);
         for j = Ni
-            cot_weight = L(i, j);
+            cot_weight = L(i, j); %Compensating for how minimisation works
 
             edge_diff_rest = V_rest(i, :) - V_rest(j, :);
 
-            avg_rotated_diff_rest = 0.5*(squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
+            avg_rotated_diff_rest = (squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
 
             rotated_diff_rest = avg_rotated_diff_rest * edge_diff_rest';
 
@@ -243,33 +243,10 @@ for iter = 1:max_iter
         end
         b(i, :, :) = RHS;
     end
-    
-    %{
-    for i = 1:n
-        if ismember(i, H)
-            index = find(H == i);
-            b(i, :) = C(index, :);
-        else
-            RHS = 0;
-            Ni = N(i, A);
-            for jj = 1:size(Ni, 2)
-                j = Ni(jj);
-                Ri = squeeze(R(i, :, :));
-                Rj = squeeze(R(j, :, :));
-                f = L(i, j);
-                s = (Ri + Rj);
-                t = reshape(V(i, :) - V(j, :), [3, 1]);
-                energy = 0.5 * f * s * t;
-                RHS = RHS + energy;
-            end
-            b(i, :) = RHS;
-        end
-    end
-    %}
 
     %b = -L * V_rest;
 
-    V_prime = L \ -b;
+    V_prime = min_quad_with_fixed(2*L, b, H, C);
 
     %% Computing ARAP Energy to Check
     energy = 0;
@@ -293,6 +270,12 @@ for iter = 1:max_iter
     fprintf('The ARAP Energy is: %d\n', energy);
 
     offsetx = 12 * iter;
+
+    tsurf(F, V_prime + [offsetx, 0, 0]);
+
+    V_prime = L \ -b;
+
+    offsetx = 20 * iter;
 
     tsurf(F, V_prime + [offsetx, 0, 0]);
     %tsurf(F, V_prime);
