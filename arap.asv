@@ -164,7 +164,7 @@ L = -L; % Make the matrix positive definite
 % Determine the transformation of the 'handles' for the constraint.
 
 %H = [2612, 49]; % Handle indices
-H = [2612, 49];
+H = [2612];
 
 h = size(H, 2); % number of handles, for this purpose we will use every 290th vertex
 
@@ -226,8 +226,11 @@ for iter = 1:max_iter
 
     % Iterate through vertices i
     for i = 1:n
-        %Si = S(:, :, i);
-        Si = covariance(V_rest, V_prime, F, L, i);
+        Si = S(:, :, i);
+
+        %Testing new function
+        %Si = covariance(V_rest, V_prime, F, L, i);
+
 
         % Compute the SVD of Si
         [Ui, Sigi, ViT] = svd(Si);
@@ -238,16 +241,45 @@ for iter = 1:max_iter
             Ri = ViT * Ui';
         end
 
+        if det(Ri - eye(d)) < 1e-12
+            Ri = eye(d);
+        end
+
+        %[UR, sigR, VR] = svd(Ri);
+
+        %Ri = UR * VR';
+
+        %Ri = Ui * ViT';
+        %if det(Ri) <= 0
+        %    Ui(:, 1) = Ui(:, 1) * -1;
+        %    Ri = Ui * ViT';
+        %end
+        
+        %Testing new function
+        %Ri = ViT * diag([ones(1, d-1) det(ViT*Ui')]) * Ui';
+
         % For testing purposes
         %Ri = eye(d);
 
         R(i, :, :) = Ri;
     end
 
+    S = reshape(S, [d d n]);
+
+    %R = fit_rotations(S);
+
+    %R = reshape(R, [n d d]);
+
     %% Fixed Rotations, Finding Deformed Positions
 
     % Construction of the b vector
-    b = zeros(n, 3);
+    b = zeros(n, d);
+
+    % b has to be n x d so the construction is a multiplication.
+    % R is n x d x d
+    % CSM is nd x nd
+
+    %Kx = covar_block()
 
     for i = 1:n
         RHS = 0;
@@ -284,6 +316,10 @@ for iter = 1:max_iter
 
             rotated_diff_rest = squeeze(R(i, :, :)) * edge_diff_rest';
 
+            if (rotated_diff_rest ~= squeeze(eye(d)) * edge_diff_rest')
+                [i, j];
+            end
+
             edge_diff_deformed = V_prime(i, :) - V_prime(j, :);
 
             %squared_diff = cot_weight * norm(rotated_diff_rest - edge_diff_deformed')^2;
@@ -312,26 +348,20 @@ close(v);
 
 % t.Vertices = V_prime;
 
-function S = covariance(V_rest, V_prime, F, L, i)
-    n = size(V_rest, 1);
-    d = size(V_rest, 2);
+function K = covar_block(V, F, d)
+    E = edges(F);
 
-    A = doublearea(V_rest, F);
-    A = 0.5*A;
+    A = sparse(E(:,1),E(:,2),V(E(:,1),d)-V(E(:,2),d),size(V,1),size(V,1));
 
-    L_new = cotmatrix(V_rest, F);
+    A = A-A';
 
-    % Find neighbors of vertex i
-    Ni = find(L_new(i, :));
-    
-    % Compute the matrix S
-    S = zeros(d, d);
-    for j = Ni'
-        cot_weight = L_new(i, j);
-        edge_rest = V_rest(i, :) - V_rest(j, :);
-        edge_deformed = V_prime(i, :) - V_prime(j, :);
-        S = S + cot_weight * (edge_deformed' * edge_rest);
-    end
+    L = cotmatrix(V, F);
+
+    K = L.*A;
+
+    K = K + diag(sum(K, 2));
+
+    K = 0.5*K;
 end
 
 % Function to get triangles incident upon vertex i

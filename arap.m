@@ -264,10 +264,18 @@ for iter = 1:max_iter
         R(i, :, :) = Ri;
     end
 
-    %% Fixed Rotations, Finding Deformed Positions
+    %S = reshape(S, [d d n]);
 
+    %R = fit_rotations(S);
+
+    %% Fixed Rotations, Finding Deformed Positions
+    
     % Construction of the b vector
-    b = zeros(n, 3);
+    b = zeros(n, d);
+
+    % b has to be n x d so the construction is a multiplication.
+    % R is n x d x d
+    % CSM is nd x nd
 
     for i = 1:n
         RHS = 0;
@@ -285,6 +293,13 @@ for iter = 1:max_iter
         end
         b(i, :, :) = RHS;
     end
+    
+    %R = reshape(R, [d d n]);
+    %[b, K] = arap_rhs(V_rest, F, R);
+    
+    %Rcol = reshape(permute(R,[3 1 2]),size(K,2),1);
+    %Bcol = K * Rcol;
+    %b = reshape(Bcol,[n d]);
 
     %b = -L * V_rest;
 
@@ -292,6 +307,8 @@ for iter = 1:max_iter
 
     % Compute the covariance matrix S
     CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+
+    R = reshape(R, [n d d]);
 
     %% Computing ARAP Energy to Check
     energy = 0;
@@ -336,28 +353,20 @@ close(v);
 
 % t.Vertices = V_prime;
 
-function S = covariance(V_rest, V_prime, F, L, i)
-    n = size(V_rest, 1);
-    d = size(V_rest, 2);
+function K = covar_block(V, F, d)
+    E = edges(F);
 
-    A = doublearea(V_rest, F);
-    A = 0.5*A;
+    A = sparse(E(:,1),E(:,2),V(E(:,1),d)-V(E(:,2),d),size(V,1),size(V,1));
 
-    %L_new = cotmatrix(V_rest, F);
+    A = A-A';
 
-    % Find neighbors of vertex i
-    Ni = find(L(i, :));
-    
-    % Compute the matrix S
-    S = zeros(d, d);
-    for j = Ni
-        if j ~= i
-            cot_weight = L(i, j);
-            edge_rest = V_rest(i, :) - V_rest(j, :);
-            edge_deformed = V_prime(i, :) - V_prime(j, :);
-            S = S + cot_weight * (edge_deformed' * edge_rest);
-        end
-    end
+    L = cotmatrix(V, F);
+
+    K = L.*A;
+
+    K = K + diag(sum(K, 2));
+
+    K = 0.5*K;
 end
 
 % Function to get triangles incident upon vertex i
