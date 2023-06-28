@@ -141,9 +141,11 @@ A = adjacency_matrix(F);
 % until the energy is at an acceptable level. 
 
 % Scrambled original position
-%V = V_rest;
-V = rand(n, d);
+V = V_rest;
+%V = rand(n, d);
 
+t1 = tsurf(F, V);
+hold on;
 t = tsurf(F, V);
 hold on;
 axis equal;
@@ -162,7 +164,7 @@ L = -L; % Make the matrix positive definite
 % Determine the transformation of the 'handles' for the constraint.
 
 %H = [2612, 49]; % Handle indices
-H = [2612, 49, 420, 99];
+H = [2612];
 
 h = size(H, 2); % number of handles, for this purpose we will use every 290th vertex
 
@@ -176,8 +178,8 @@ target_shape = V_rest;
 
 for i = 1:h
     original_pos = target_shape(H(i), :);
-    C(i, :) = original_pos;
-    scatter3(original_pos(1), original_pos(2), original_pos(3), 'filled');
+    C(i, :) = original_pos + [0, 0, 10];
+    scatter3(original_pos(1), original_pos(2), original_pos(3) + 10, 'filled');
     V_prime(H(i), :) = original_pos;
 end
 
@@ -201,7 +203,8 @@ for i = 1:n
 
         edge_diff_deformed = V_prime(i, :) - V_prime(j, :);
 
-        squared_diff = cot_weight * norm(rotated_diff_rest - edge_diff_deformed')^2;
+        %squared_diff = cot_weight * norm(rotated_diff_rest - edge_diff_deformed')^2;
+        squared_diff = norm(rotated_diff_rest - edge_diff_deformed')^2;
 
         energy = energy + squared_diff;
     end
@@ -210,7 +213,7 @@ end
 fprintf('The ARAP Energy is: %d\n', energy);
 
 % Compute the covariance matrix S
-CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+CSM = covariance_scatter_matrix(V_rest, F, 'Energy', 'spokes');
 
 % Optimisation Loops
 for iter = 1:max_iter
@@ -225,6 +228,10 @@ for iter = 1:max_iter
     for i = 1:n
         Si = S(:, :, i);
 
+        %Testing new function
+        %Si = covariance(V_rest, V_prime, F, L, i);
+
+
         % Compute the SVD of Si
         [Ui, Sigi, ViT] = svd(Si);
 
@@ -233,6 +240,23 @@ for iter = 1:max_iter
             Ui(:, 1) = Ui(:, 1) * -1;
             Ri = ViT * Ui';
         end
+
+        if det(Ri - eye(d)) < 1e-12
+            Ri = eye(d);
+        end
+
+        %[UR, sigR, VR] = svd(Ri);
+
+        %Ri = UR * VR';
+
+        %Ri = Ui * ViT';
+        %if det(Ri) <= 0
+        %    Ui(:, 1) = Ui(:, 1) * -1;
+        %    Ri = Ui * ViT';
+        %end
+        
+        %Testing new function
+        %Ri = ViT * diag([ones(1, d-1) det(ViT*Ui')]) * Ui';
 
         % For testing purposes
         %Ri = eye(d);
@@ -280,9 +304,14 @@ for iter = 1:max_iter
 
             rotated_diff_rest = squeeze(R(i, :, :)) * edge_diff_rest';
 
+            if (rotated_diff_rest ~= squeeze(eye(d)) * edge_diff_rest')
+                [i, j];
+            end
+
             edge_diff_deformed = V_prime(i, :) - V_prime(j, :);
 
-            squared_diff = cot_weight * norm(rotated_diff_rest - edge_diff_deformed')^2;
+            %squared_diff = cot_weight * norm(rotated_diff_rest - edge_diff_deformed')^2;
+            squared_diff = norm(rotated_diff_rest - edge_diff_deformed')^2;
 
             energy = energy + squared_diff;
         end
@@ -306,6 +335,30 @@ offsetx = 12;
 close(v);
 
 % t.Vertices = V_prime;
+
+function S = covariance(V_rest, V_prime, F, L, i)
+    n = size(V_rest, 1);
+    d = size(V_rest, 2);
+
+    A = doublearea(V_rest, F);
+    A = 0.5*A;
+
+    %L_new = cotmatrix(V_rest, F);
+
+    % Find neighbors of vertex i
+    Ni = find(L(i, :));
+    
+    % Compute the matrix S
+    S = zeros(d, d);
+    for j = Ni
+        if j ~= i
+            cot_weight = L(i, j);
+            edge_rest = V_rest(i, :) - V_rest(j, :);
+            edge_deformed = V_prime(i, :) - V_prime(j, :);
+            S = S + cot_weight * (edge_deformed' * edge_rest);
+        end
+    end
+end
 
 % Function to get triangles incident upon vertex i
 function Ci = cell(i, F)
