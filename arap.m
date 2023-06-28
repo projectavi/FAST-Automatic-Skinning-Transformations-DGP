@@ -209,13 +209,14 @@ end
 
 fprintf('The ARAP Energy is: %d\n', energy);
 
+% Compute the covariance matrix S
+CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+
 % Optimisation Loops
 for iter = 1:max_iter
     
     %% Fixed Deformed Positions, Finding Rotations
     
-    % Compute the covariance matrix S
-    CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
     S = CSM * repmat(V_prime, d, 1);
     % dim by dim by n list of covariance matrices
     S = permute(reshape(S,[n d d]),[2 3 1]);
@@ -264,6 +265,9 @@ for iter = 1:max_iter
     %b = -L * V_rest;
 
     V_prime = min_quad_with_fixed(2*L, b, H, C); % Additional Compensation
+
+    % Compute the covariance matrix S
+    CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
 
     %% Computing ARAP Energy to Check
     energy = 0;
