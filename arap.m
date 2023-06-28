@@ -171,14 +171,17 @@ C = zeros(h, d);
 % Initial Guess
 V_prime = V;
 
+% Set the target shape to extract handle values from
+target_shape = V_rest;
+
 for i = 1:h
-    original_pos = V_rest(H(i), :);
+    original_pos = target_shape(H(i), :);
     C(i, :) = original_pos;
     scatter3(original_pos(1), original_pos(2), original_pos(3), 'filled');
     V_prime(H(i), :) = original_pos;
 end
 
-max_iter = 25;
+max_iter = 10;
 
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
