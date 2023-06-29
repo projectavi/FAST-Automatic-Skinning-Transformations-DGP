@@ -13,6 +13,31 @@ m = size(F, 1);
 
 A = adjacency_matrix(F);
 
+t = tsurf(F, V_rest);
+axis equal;
+hold on;
+xlim([-6, 6]);
+ylim([-6, 6]);
+frame = getframe(gcf);
+v = VideoWriter('old.mp4', 'MPEG-4');
+open(v);
+writeVideo(v, frame);
+
+V = V_rest;
+theta = 0;
+for i = 1:41
+    b = [42, 100];
+    bc = zeros(size(b, 2), d);
+    bc(1, :) = [-sin(theta)*1.5, cos(theta)*1.5, 0];
+    V = my_arap(V_rest, V_rest, F, b, bc, 100);
+    theta = theta + 0.05*pi;
+    t.Vertices = V;
+    frame = getframe(gcf);
+    writeVideo(v, frame);
+end
+
+close(v);
+
 % After the deformation, if it was rigid then for each cell i there must be
 % a rotation matrix R_i such that
 % Ni = N(i, A);
@@ -140,12 +165,13 @@ A = adjacency_matrix(F);
 % solving L * V_prime = b by doing V_prime = inv(L) * b. This is repeated
 % until the energy is at an acceptable level. 
 
+%{
 % Scrambled original position
 V = V_rest;
 %V = rand(n, d);
 
-t1 = tsurf(F, V);
-hold on;
+%t1 = tsurf(F, V);
+%hold on;
 t = tsurf(F, V);
 hold on;
 axis equal;
@@ -164,7 +190,7 @@ L = -L; % Make the matrix positive definite
 % Determine the transformation of the 'handles' for the constraint.
 
 %H = [2612, 49]; % Handle indices
-H = [2612];
+H = [2612, 49];
 
 h = size(H, 2); % number of handles, for this purpose we will use every 290th vertex
 
@@ -176,14 +202,21 @@ V_prime = V;
 % Set the target shape to extract handle values from
 target_shape = V_rest;
 
+o = -1;
+
 for i = 1:h
+    mod = [0, 0, 0];
     original_pos = target_shape(H(i), :);
-    C(i, :) = original_pos + [0, 0, 10];
-    scatter3(original_pos(1), original_pos(2), original_pos(3) + 10, 'filled');
+    modded = original_pos + mod;
+    C(i, :) = modded;
+    scatter3(modded(1), modded(2), modded(3), 'filled');
     V_prime(H(i), :) = original_pos;
+    o = 1;
 end
 
-max_iter = 10;
+
+
+max_iter = 5;
 
 % Initialise array of local rotation matrices
 R = zeros(n, d, d);
@@ -213,7 +246,7 @@ end
 fprintf('The ARAP Energy is: %d\n', energy);
 
 % Compute the covariance matrix S
-CSM = covariance_scatter_matrix(V_rest, F, 'Energy', 'spokes');
+CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
 
 % Optimisation Loops
 for iter = 1:max_iter
@@ -264,22 +297,18 @@ for iter = 1:max_iter
         R(i, :, :) = Ri;
     end
 
-    S = reshape(S, [d d n]);
+    %S = reshape(S, [d d n]);
 
     %R = fit_rotations(S);
 
-    %R = reshape(R, [n d d]);
-
     %% Fixed Rotations, Finding Deformed Positions
-
+    
     % Construction of the b vector
     b = zeros(n, d);
 
     % b has to be n x d so the construction is a multiplication.
     % R is n x d x d
     % CSM is nd x nd
-
-    %Kx = covar_block()
 
     for i = 1:n
         RHS = 0;
@@ -297,6 +326,13 @@ for iter = 1:max_iter
         end
         b(i, :, :) = RHS;
     end
+    
+    %R = reshape(R, [d d n]);
+    %[b, K] = arap_rhs(V_rest, F, R);
+    
+    %Rcol = reshape(permute(R,[3 1 2]),size(K,2),1);
+    %Bcol = K * Rcol;
+    %b = reshape(Bcol,[n d]);
 
     %b = -L * V_rest;
 
@@ -304,6 +340,8 @@ for iter = 1:max_iter
 
     % Compute the covariance matrix S
     CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+
+    R = reshape(R, [n d d]);
 
     %% Computing ARAP Energy to Check
     energy = 0;
@@ -347,21 +385,155 @@ offsetx = 12;
 close(v);
 
 % t.Vertices = V_prime;
+%}
 
-function K = covar_block(V, F, d)
-    E = edges(F);
+function V_prime = my_arap(V_in, V_rest, F_in, H, bc, iterations)
+    V = V_in;
+    F = F_in;
 
-    A = sparse(E(:,1),E(:,2),V(E(:,1),d)-V(E(:,2),d),size(V,1),size(V,1));
+    n = size(V_in, 1);
+    d = size(V_in, 2);
 
-    A = A-A';
+    A = adjacency_matrix(F);
+    
+    h = size(H, 2); % number of handles, for this purpose we will use every 290th vertex
 
-    L = cotmatrix(V, F);
+    C = zeros(h, d);
+    
+    % Initial Guess
+    V_prime = V;
 
-    K = L.*A;
+    for i = 1:h
+        handle_position = V(H(i), :) + bc(i, :);
+        C(i, :) = handle_position;
+        V_prime(H(i), :) = handle_position;
+        scatter3(handle_position(1), handle_position(2), handle_position(3), 'filled');
+    end
 
-    K = K + diag(sum(K, 2));
+    max_iter = iterations;
+    
+    % Initialise array of local rotation matrices
+    R = zeros(n, d, d);
+    
+    L = cotmatrix(V_rest, F) + 1e-9*speye(n);
+    L = -L; % Make the matrix positive definite
+    
+    %% Computing ARAP Energy to Check
+    %{
+    energy = 0;
+    for i = 1:n
+        Ni = N(i, A);
+        for j = Ni
+            cot_weight = L(i, j);
+            
+            edge_diff_rest = V_rest(i, :) - V_rest(j, :);
+    
+            rotated_diff_rest = squeeze(R(i, :, :)) * edge_diff_rest';
+    
+            edge_diff_deformed = V_prime(i, :) - V_prime(j, :);
+    
+            %squared_diff = cot_weight * norm(rotated_diff_rest - edge_diff_deformed')^2;
+            squared_diff = norm(rotated_diff_rest - edge_diff_deformed')^2;
+    
+            energy = energy + squared_diff;
+        end
+    end
+    
+    fprintf('The ARAP Energy is: %d\n', energy);
+    %}
+    
+    % Compute the covariance matrix S
+    CSM = covariance_scatter_matrix(V_rest, F, 'Energy', 'spokes');
+    
+    % Optimisation Loops
+    for iter = 1:max_iter
+        
+        %% Fixed Deformed Positions, Finding Rotations
+        
+        S = CSM * repmat(V_prime, d, 1);
+        % dim by dim by n list of covariance matrices
+        S = permute(reshape(S,[n d d]),[2 3 1]);
+    
+        % Iterate through vertices i
+        
+        for i = 1:n
+            Si = S(:, :, i);
+    
+            % Compute the SVD of Si
+            [Ui, Sigi, ViT] = svd(Si);
+    
+            Ri = ViT * Ui';
+            if det(Ri) <= 0
+                Ui(:, 1) = Ui(:, 1) * -1;
+                Ri = ViT * Ui';
+            end
+    
+            %if det(Ri - eye(d)) < 1e-12
+            %    Ri = eye(d);
+            %end
+    
+            R(i, :, :) = Ri';
+        end
 
-    K = 0.5*K;
+        V_prime(H, :) = V_rest(H,:) + bc;
+
+        %{
+        SS = zeros(size(CSM,1), d);
+        SS(:,1:d) = CSM*repmat(V_prime,d,1);
+        SS = permute(reshape(SS,[size(CSM,1)/d d d]),[2 3 1]);
+
+        R = fit_rotations(SS, 'SinglePrecision' ,false);
+
+        R = reshape(R, [n d d]);
+        
+
+        V_prime(H, :) = V_rest(H,:) + bc;
+        %}
+    
+        %% Fixed Rotations, Finding Deformed Positions
+        
+        % Construction of the b vector
+        b = zeros(n, d);
+    
+        for i = 1:n
+            RHS = 0;
+            Ni = N(i, A);
+            for j = Ni
+                cot_weight = 2*L(i, j); % Compensating for how minimisation works
+                edge_diff_rest = V_rest(i, :) - V_rest(j, :);
+                avg_rotated_diff_rest = (squeeze(R(i, :, :)) + squeeze(R(j, :, :)));
+                rotated_diff_rest = avg_rotated_diff_rest * edge_diff_rest';
+                RHS = RHS + cot_weight * rotated_diff_rest';
+            end
+            b(i, :, :) = RHS;
+        end
+    
+        V_prime = min_quad_with_fixed(2*L, b, H, C); % Additional Compensation
+    
+        % Compute the covariance matrix S
+        %CSM = covariance_scatter_matrix(V_prime, F, 'Energy', 'spokes');
+
+        %fprintf('The ARAP Energy is: %d\n', arap_energy(V_rest, F, V_prime));
+    
+        R = reshape(R, [n d d]);
+    
+        %% Computing ARAP Energy to Check
+        %{
+        energy = 0;
+        for i = 1:n
+            Ni = N(i, A);
+            for j = Ni           
+                edge_diff_rest = V_rest(i, :) - V_rest(j, :);
+                rotated_diff_rest = squeeze(R(i, :, :)) * edge_diff_rest';
+                edge_diff_deformed = V_prime(i, :) - V_prime(j, :);
+                squared_diff = norm(rotated_diff_rest - edge_diff_deformed')^2;
+                energy = energy + squared_diff;
+            end
+        end
+    
+        fprintf('The ARAP Energy is: %d\n', energy);
+        %}
+    end
 end
 
 % Function to get triangles incident upon vertex i
